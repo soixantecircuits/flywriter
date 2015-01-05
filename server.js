@@ -1,31 +1,30 @@
 var io = require('socket.io')(5555);
 var fs = require('fs');
 var file;
+var prevColor;
 
 io.on('connection', function (socket){
   socket
   .emit('connect')
-  .on('binding', function (path){
-    file = path;
+  .on('binding', function (data){
+    file = data.path;
+    prevColor = data.color;
+  })
+  .on('update-color', function (color){
+    io.emit('live-change', color);
   })
   .on('update-file', function (data){
-    var rgba = data.rgba.r.toString() + ',' + data.rgba.g.toString() + ',' + data.rgba.b.toString() + ',' + data.rgba.a.toString();
-    console.log(rgba);
-
-    var liner = require('./liner');
-    var source = fs.createReadStream(file);
-
-    source.pipe(liner);
-    liner
-    .on('readable', function () {
-      var line = liner.read();
-      console.log(line);
-    })
-    .on('end', function (){
-      console.log('stream ended');
-      source.unpipe(liner);
-      liner.end();
-    });
-
+    if(file){
+      fs.writeFile(file, '{"colors": ' + JSON.stringify(data, null, '\t') + '}', 'utf8', function (err) {
+         if (err){
+          return err;
+         } else {
+          console.log('changed', file);
+          io.emit('reload-config');
+         }
+      });
+    } else {
+      console.log('No such file, sorry');
+    }
   })
-})
+});
